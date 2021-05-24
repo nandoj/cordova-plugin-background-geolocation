@@ -16,6 +16,9 @@ import android.app.Application;
 import android.content.Context;
 import android.Manifest;
 import android.content.pm.PackageManager;
+import android.content.SharedPreferences;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.marianhello.bgloc.BackgroundGeolocationFacade;
 import com.marianhello.bgloc.Config;
@@ -26,6 +29,7 @@ import com.marianhello.bgloc.cordova.PluginRegistry;
 import com.marianhello.bgloc.cordova.headless.JsEvaluatorTaskRunner;
 import com.marianhello.bgloc.data.BackgroundActivity;
 import com.marianhello.bgloc.data.BackgroundLocation;
+import com.marianhello.bgloc.data.PermissionStatus;
 import com.marianhello.logging.LogEntry;
 import com.marianhello.logging.LoggerManager;
 
@@ -80,6 +84,9 @@ public class BackgroundGeolocationPlugin extends CordovaPlugin implements Plugin
 
     private static final int FOREGROUND_PERMISSION_REQUEST_CODE = 0;
     private static final int BACKGROUND_PERMISSION_REQUEST_CODE = 1;
+
+    private static final String HAS_REQUESTED_FOREGROUND_PERMISSION_KEY = "has_requested_foreground_permission";
+    private static final String HAS_REQUESTED_BACKGROUND_PERMISSION_KEY = "has_requested_background_permission";
 
     private BackgroundGeolocationFacade facade;
 
@@ -142,7 +149,7 @@ public class BackgroundGeolocationPlugin extends CordovaPlugin implements Plugin
         super.pluginInitialize();
 
         logger = LoggerManager.getLogger(BackgroundGeolocationPlugin.class);
-        facade = new BackgroundGeolocationFacade(this.getContext(), this, this.getActivity());
+        facade = new BackgroundGeolocationFacade(this.getContext(), this);
         facade.resume();
     }
 
@@ -362,11 +369,11 @@ public class BackgroundGeolocationPlugin extends CordovaPlugin implements Plugin
             return true;
         } else if (ACTION_CHECK_FOREGROUND_PERMISSION.equals(action)) {
             logger.debug("check foreground permission requested");
-            facade.checkForegroundLocationPermission();
+            checkForegroundLocationPermission();
             return true;
         } else if (ACTION_CHECK_BACKGROUND_PERMISSION.equals(action)) {
             logger.debug("check background permission requested");
-            facade.checkBackgroundLocationPermission();
+            checkBackgroundLocationPermission();
             return true;
         } else if (ACTION_REQUEST_FOREGROUND_PERMISSION.equals(action)) {
             logger.debug("request foreground permission requested");
@@ -387,19 +394,77 @@ public class BackgroundGeolocationPlugin extends CordovaPlugin implements Plugin
         switch (requestCode) {
             case FOREGROUND_PERMISSION_REQUEST_CODE:
                 if (isGranted) {
-                    onPermissionChanged("foreground_enabled");
+                    onPermissionChanged(new PermissionStatus("foreground", true));
                 } else {
-                    onPermissionChanged("foreground_disabled");
+                    onPermissionChanged(new PermissionStatus("foreground", false, !ActivityCompat.shouldShowRequestPermissionRationale(getActivity(), Manifest.permission.ACCESS_FINE_LOCATION)));
                 }
+                this.setHasRequestedForegroundPermission(true);
                 return;
             case BACKGROUND_PERMISSION_REQUEST_CODE:
                 if (isGranted) {
-                    onPermissionChanged("background_enabled");
+                    onPermissionChanged(new PermissionStatus("background", true));
                 } else {
-                    onPermissionChanged("background_disabled");
+                    onPermissionChanged(new PermissionStatus("background", false, !ActivityCompat.shouldShowRequestPermissionRationale(getActivity(), Manifest.permission.ACCESS_BACKGROUND_LOCATION)));
                 }
+                this.setHasRequestedBackgroundPermission(true);
                 return;
         }
+    }
+
+    public void checkForegroundLocationPermission() {
+        logger.debug("Checking foreground permission");
+        boolean isFineLocationGranted = ContextCompat.checkSelfPermission(this.getContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        if (isFineLocationGranted) {
+            onPermissionChanged(new PermissionStatus("foreground", true));
+        } else if (ActivityCompat.shouldShowRequestPermissionRationale(getActivity(), Manifest.permission.ACCESS_FINE_LOCATION)) {
+            onPermissionChanged(new PermissionStatus("foreground", false));
+        } else {
+            if (this.hasRequestedForegroundPermission()) {
+                onPermissionChanged(new PermissionStatus("foreground", false, true));
+            } else {
+                onPermissionChanged(new PermissionStatus("foreground", false));
+            }
+        }
+    }
+
+    public void checkBackgroundLocationPermission() {
+        logger.debug("Checking background permission");
+        boolean isBackgroundLocationGranted = ContextCompat.checkSelfPermission(this.getContext(), Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        if (isBackgroundLocationGranted) {
+            onPermissionChanged(new PermissionStatus("background", true));
+        } else if (ActivityCompat.shouldShowRequestPermissionRationale(getActivity(), Manifest.permission.ACCESS_BACKGROUND_LOCATION)) {
+            onPermissionChanged(new PermissionStatus("background", false));
+        } else {
+            if (this.hasRequestedBackgroundPermission()) {
+                onPermissionChanged(new PermissionStatus("background", false, true));
+            } else {
+                onPermissionChanged(new PermissionStatus("background", false));
+            }
+        }
+    }
+
+    private boolean hasRequestedForegroundPermission() {
+        SharedPreferences sharedPref = getActivity().getPreferences(Context.MODE_PRIVATE);
+        return sharedPref.getBoolean(HAS_REQUESTED_FOREGROUND_PERMISSION_KEY, false);
+    }
+
+    private boolean hasRequestedBackgroundPermission() {
+        SharedPreferences sharedPref = getActivity().getPreferences(Context.MODE_PRIVATE);
+        return sharedPref.getBoolean(HAS_REQUESTED_BACKGROUND_PERMISSION_KEY, false);
+    }
+
+    private void setHasRequestedForegroundPermission(boolean value) {
+        SharedPreferences sharedPref = getActivity().getPreferences(Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPref.edit();
+        editor.putBoolean(HAS_REQUESTED_FOREGROUND_PERMISSION_KEY, value);
+        editor.apply();
+    }
+
+    private void setHasRequestedBackgroundPermission(boolean value) {
+        SharedPreferences sharedPref = getActivity().getPreferences(Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPref.edit();
+        editor.putBoolean(HAS_REQUESTED_BACKGROUND_PERMISSION_KEY, value);
+        editor.apply();
     }
 
     private void start(boolean skipPermissionCheck) {
@@ -512,22 +577,6 @@ public class BackgroundGeolocationPlugin extends CordovaPlugin implements Plugin
         }
     }
 
-    private void sendEvent(String name, String payload) {
-        if (callbackContext == null) {
-            return;
-        }
-        JSONObject event = new JSONObject();
-        try {
-            event.put("name", name);
-            event.put("payload", payload);
-            PluginResult result = new PluginResult(PluginResult.Status.OK, event);
-            result.setKeepCallback(true);
-            callbackContext.sendPluginResult(result);
-        } catch (JSONException e) {
-            logger.error("Error sending event {}: {}", name, e.getMessage());
-        }
-    }
-
     private void sendError(PluginException e) {
         if (callbackContext == null) {
             return;
@@ -583,8 +632,13 @@ public class BackgroundGeolocationPlugin extends CordovaPlugin implements Plugin
     }
 
     @Override
-    public void onPermissionChanged(String status) {
-        sendEvent(PERMISSION_EVENT, status);
+    public void onPermissionChanged(PermissionStatus permissionStatus) {
+        try {
+            sendEvent(PERMISSION_EVENT, permissionStatus.toJSONObject());
+        } catch (JSONException e) {
+            logger.error("Error converting permission status to json: {}", e.getMessage());
+            sendError(new PluginException(e.getMessage(), PluginException.JSON_ERROR));
+        }
     }
 
     @Override

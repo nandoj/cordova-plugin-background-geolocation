@@ -67,6 +67,7 @@
         <source-file src="android/common/src/main/java/com/marianhello/bgloc/data/LocationTemplateFactory.java" target-dir="src/com/marianhello/bgloc/data" />
         <source-file src="android/common/src/main/java/com/marianhello/bgloc/data/LocationTemplate.java" target-dir="src/com/marianhello/bgloc/data" />
         <source-file src="android/common/src/main/java/com/marianhello/bgloc/data/LocationTransform.java" target-dir="src/com/marianhello/bgloc/data" />
+        <source-file src="android/common/src/main/java/com/marianhello/bgloc/data/PermissionStatus.java" target-dir="src/com/marianhello/bgloc/data" />
         <source-file src="android/common/src/main/java/com/marianhello/bgloc/data/provider/ContentProviderLocationDAO.java" target-dir="src/com/marianhello/bgloc/data/provider" />
         <source-file src="android/common/src/main/java/com/marianhello/bgloc/data/provider/LocationContentProvider.java" target-dir="src/com/marianhello/bgloc/data/provider" />
         <source-file src="android/common/src/main/java/com/marianhello/bgloc/data/sqlite/SQLiteConfigurationContract.java" target-dir="src/com/marianhello/bgloc/data/sqlite" />
