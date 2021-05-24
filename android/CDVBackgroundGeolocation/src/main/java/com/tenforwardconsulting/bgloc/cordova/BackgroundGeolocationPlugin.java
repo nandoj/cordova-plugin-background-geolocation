@@ -14,6 +14,8 @@ package com.tenforwardconsulting.bgloc.cordova;
 import android.app.Activity;
 import android.app.Application;
 import android.content.Context;
+import android.Manifest;
+import android.content.pm.PackageManager;
 
 import com.marianhello.bgloc.BackgroundGeolocationFacade;
 import com.marianhello.bgloc.Config;
@@ -48,6 +50,7 @@ public class BackgroundGeolocationPlugin extends CordovaPlugin implements Plugin
     public static final String STOP_EVENT = "stop";
     public static final String ABORT_REQUESTED_EVENT = "abort_requested";
     public static final String HTTP_AUTHORIZATION_EVENT = "http_authorization";
+    public static final String PERMISSION_EVENT = "permission";
 
     public static final String ACTION_START = "start";
     public static final String ACTION_STOP = "stop";
@@ -70,6 +73,13 @@ public class BackgroundGeolocationPlugin extends CordovaPlugin implements Plugin
     public static final String ACTION_END_TASK = "endTask";
     public static final String ACTION_REGISTER_HEADLESS_TASK = "registerHeadlessTask";
     public static final String ACTION_FORCE_SYNC = "forceSync";
+    public static final String ACTION_CHECK_FOREGROUND_PERMISSION = "checkForegroundPermission";
+    public static final String ACTION_CHECK_BACKGROUND_PERMISSION = "checkBackgroundPermission";
+    public static final String ACTION_REQUEST_FOREGROUND_PERMISSION = "requestForegroundPermission";
+    public static final String ACTION_REQUEST_BACKGROUND_PERMISSION = "requestBackgroundPermission";
+
+    private static final int FOREGROUND_PERMISSION_REQUEST_CODE = 0;
+    private static final int BACKGROUND_PERMISSION_REQUEST_CODE = 1;
 
     private BackgroundGeolocationFacade facade;
 
@@ -132,7 +142,7 @@ public class BackgroundGeolocationPlugin extends CordovaPlugin implements Plugin
         super.pluginInitialize();
 
         logger = LoggerManager.getLogger(BackgroundGeolocationPlugin.class);
-        facade = new BackgroundGeolocationFacade(this.getContext(), this);
+        facade = new BackgroundGeolocationFacade(this.getContext(), this, this.getActivity());
         facade.resume();
     }
 
@@ -148,7 +158,8 @@ public class BackgroundGeolocationPlugin extends CordovaPlugin implements Plugin
         else if (ACTION_START.equals(action)) {
             runOnWebViewThread(new Runnable() {
                 public void run() {
-                    start();
+                    boolean skipPermissionCheck = data.optBoolean(0, false);
+                    start(skipPermissionCheck);
                 }
             });
 
@@ -349,13 +360,50 @@ public class BackgroundGeolocationPlugin extends CordovaPlugin implements Plugin
             logger.debug("Forced location sync requested");
             facade.forceSync();
             return true;
+        } else if (ACTION_CHECK_FOREGROUND_PERMISSION.equals(action)) {
+            logger.debug("check foreground permission requested");
+            facade.checkForegroundLocationPermission();
+            return true;
+        } else if (ACTION_CHECK_BACKGROUND_PERMISSION.equals(action)) {
+            logger.debug("check background permission requested");
+            facade.checkBackgroundLocationPermission();
+            return true;
+        } else if (ACTION_REQUEST_FOREGROUND_PERMISSION.equals(action)) {
+            logger.debug("request foreground permission requested");
+            cordova.requestPermission(this, FOREGROUND_PERMISSION_REQUEST_CODE, Manifest.permission.ACCESS_FINE_LOCATION);
+            return true;
+        } else if (ACTION_REQUEST_BACKGROUND_PERMISSION.equals(action)) {
+            logger.debug("request background permission requested");
+            cordova.requestPermission(this, BACKGROUND_PERMISSION_REQUEST_CODE, Manifest.permission.ACCESS_BACKGROUND_LOCATION);
+            return true;
         }
-
         return false;
     }
 
-    private void start() {
-        facade.start();
+    public void onRequestPermissionResult(int requestCode, String[] permissions,
+                                         int[] grantResults) throws JSONException
+    {
+        boolean isGranted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+        switch (requestCode) {
+            case FOREGROUND_PERMISSION_REQUEST_CODE:
+                if (isGranted) {
+                    onPermissionChanged("foreground_enabled");
+                } else {
+                    onPermissionChanged("foreground_disabled");
+                }
+                return;
+            case BACKGROUND_PERMISSION_REQUEST_CODE:
+                if (isGranted) {
+                    onPermissionChanged("background_enabled");
+                } else {
+                    onPermissionChanged("background_disabled");
+                }
+                return;
+        }
+    }
+
+    private void start(boolean skipPermissionCheck) {
+        facade.start(skipPermissionCheck);
     }
 
     /**
@@ -464,6 +512,22 @@ public class BackgroundGeolocationPlugin extends CordovaPlugin implements Plugin
         }
     }
 
+    private void sendEvent(String name, String payload) {
+        if (callbackContext == null) {
+            return;
+        }
+        JSONObject event = new JSONObject();
+        try {
+            event.put("name", name);
+            event.put("payload", payload);
+            PluginResult result = new PluginResult(PluginResult.Status.OK, event);
+            result.setKeepCallback(true);
+            callbackContext.sendPluginResult(result);
+        } catch (JSONException e) {
+            logger.error("Error sending event {}: {}", name, e.getMessage());
+        }
+    }
+
     private void sendError(PluginException e) {
         if (callbackContext == null) {
             return;
@@ -516,6 +580,11 @@ public class BackgroundGeolocationPlugin extends CordovaPlugin implements Plugin
         json.put("authorization", facade.getAuthorizationStatus());
 
         return json;
+    }
+
+    @Override
+    public void onPermissionChanged(String status) {
+        sendEvent(PERMISSION_EVENT, status);
     }
 
     @Override

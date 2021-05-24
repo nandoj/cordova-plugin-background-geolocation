@@ -54,7 +54,8 @@ var BackgroundGeolocation = {
     'foreground',
     'background',
     'abort_requested',
-    'http_authorization'
+    'http_authorization',
+    'permission'
   ],
 
   DISTANCE_FILTER_PROVIDER: 0,
@@ -92,8 +93,12 @@ var BackgroundGeolocation = {
     );
   },
 
-  start: function () {
-    exec(null, null, 'BackgroundGeolocation', 'start');
+  start: function (config) {
+    var skipPermissionCheck = false;
+    if (config && config.skipPermissionCheck) {
+      skipPermissionCheck = config.skipPermissionCheck;
+    }
+    exec(null, null, 'BackgroundGeolocation', 'start', [skipPermissionCheck]);
   },
 
   stop: function (success, failure) {
@@ -245,6 +250,34 @@ var BackgroundGeolocation = {
       failure || emptyFnc,
       'BackgroundGeolocation',
       'forceSync', []);
+  },
+
+  checkForegroundPermission: function (success, failure) {
+    exec(success || emptyFnc,
+      failure || emptyFnc,
+      'BackgroundGeolocation',
+      'checkForegroundPermission', []);
+  },
+
+  checkBackgroundPermission: function (success, failure) {
+    exec(success || emptyFnc,
+      failure || emptyFnc,
+      'BackgroundGeolocation',
+      'checkBackgroundPermission', []);
+  },
+
+  requestForegroundPermission: function (success, failure) {
+    exec(success || emptyFnc,
+      failure || emptyFnc,
+      'BackgroundGeolocation',
+      'requestForegroundPermission', []);
+  },
+
+  requestBackgroundPermission: function (success, failure) {
+    exec(success || emptyFnc,
+      failure || emptyFnc,
+      'BackgroundGeolocation',
+      'requestBackgroundPermission', []);
   },
 
   on: function (event, callbackFn) {

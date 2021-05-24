@@ -1,6 +1,6 @@
 {
   "name": "@heartmon/cordova-plugin-background-geolocation",
-  "version": "3.2.1",
+  "version": "3.3.0",
   "description": "Cordova Background Geolocation Plugin",
   "main": "./www/BackgroundGeolocation.js",
   "types": "./www/BackgroundGeolocation.d.ts",
