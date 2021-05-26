@@ -17,6 +17,7 @@ import android.content.Context;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.content.SharedPreferences;
+import android.os.Build;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
@@ -429,6 +430,11 @@ public class BackgroundGeolocationPlugin extends CordovaPlugin implements Plugin
 
     public void checkBackgroundLocationPermission() {
         logger.debug("Checking background permission");
+        // if Android < 10 don't need to background location permission -> granted by default
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+            onPermissionChanged(new PermissionStatus("background", true));
+            return;
+        }
         boolean isBackgroundLocationGranted = ContextCompat.checkSelfPermission(this.getContext(), Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED;
         if (isBackgroundLocationGranted) {
             onPermissionChanged(new PermissionStatus("background", true));
