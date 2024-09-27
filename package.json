@@ -1,6 +1,6 @@
 {
   "name": "@nandoj/cordova-plugin-background-geolocation",
-  "version": "3.4.5",
+  "version": "3.4.6",
   "description": "Cordova Background Geolocation Plugin",
   "main": "./www/BackgroundGeolocation.js",
   "types": "./www/BackgroundGeolocation.d.ts",
